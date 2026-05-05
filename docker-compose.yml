@@ -1,0 +1,87 @@
+# docker-compose.yml — Local development stack
+# Starts: API + PostgreSQL + Redis together
+# Usage: docker-compose up -d
+
+version: '3.9'
+
+services:
+  # ── MedBook API ─────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      target: builder          # Use builder stage with ts-node for dev
+    command: npm run dev
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV:          development
+      PORT:              3000
+      DB_HOST:           postgres
+      DB_PORT:           5432
+      DB_NAME:           medbook_db
+      DB_USER:           medbook_user
+      DB_PASSWORD:       medbook_dev_pass
+      REDIS_HOST:        redis
+      REDIS_PORT:        6379
+      JWT_ACCESS_SECRET: dev_access_secret_change_in_production_min_64_chars
+      JWT_REFRESH_SECRET:dev_refresh_secret_change_in_production_min_64_chars
+      LOG_LEVEL:         debug
+    volumes:
+      - ./src:/app/src         # Live reload source code
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── PostgreSQL 15 ────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB:       medbook_db
+      POSTGRES_USER:     medbook_user
+      POSTGRES_PASSWORD: medbook_dev_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema:/docker-entrypoint-initdb.d  # Auto-run schema on first start
+    healthcheck:
+      test:     ["CMD-SHELL", "pg_isready -U medbook_user -d medbook_db"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+    restart: unless-stopped
+
+  # ── Redis 7 ──────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test:     ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+    restart: unless-stopped
+
+  # ── pgAdmin (optional DB UI) ──────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    profiles: ["tools"]      # Only starts with: docker-compose --profile tools up
+    environment:
+      PGADMIN_DEFAULT_EMAIL:    admin@medbook.in
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  redis_data:

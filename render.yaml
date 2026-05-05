@@ -1,0 +1,204 @@
+# render.yaml
+# ============================================================
+#  MedBook India — Render.com Deployment Config
+#  This file tells Render exactly how to deploy everything
+#  Commit this file to your GitHub repo root
+#
+#  Services created:
+#    - medbook-api      (Node.js web service)
+#    - medbook-postgres (PostgreSQL 15 database)
+#    - medbook-redis    (Redis cache)
+# ============================================================
+
+services:
+
+  # ── Backend API ────────────────────────────────────────────
+  - type: web
+    name: medbook-api
+    runtime: node
+    region: singapore   # closest to India
+    plan: free          # free tier — upgrades available
+
+    # Build settings
+    rootDir: .
+    buildCommand: npm install && npm run build
+    startCommand: node dist/index.js
+
+    # Health check — Render uses this to know the app is ready
+    healthCheckPath: /health
+
+    # Auto-deploy on every push to main
+    autoDeploy: true
+
+    # Environment variables
+    # Sensitive values set in Render dashboard (not here)
+    envVars:
+
+      # ── App ────────────────────────────────────────────────
+      - key: NODE_ENV
+        value: production
+
+      - key: PORT
+        value: 10000    # Render assigns this port
+
+      - key: API_VERSION
+        value: v1
+
+      - key: LOG_LEVEL
+        value: info
+
+      # ── Database (auto-linked from Render Postgres) ────────
+      - key: DB_HOST
+        fromDatabase:
+          name: medbook-postgres
+          property: host
+
+      - key: DB_PORT
+        fromDatabase:
+          name: medbook-postgres
+          property: port
+
+      - key: DB_NAME
+        fromDatabase:
+          name: medbook-postgres
+          property: database
+
+      - key: DB_USER
+        fromDatabase:
+          name: medbook-postgres
+          property: user
+
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: medbook-postgres
+          property: password
+
+      - key: DB_SSL
+        value: "true"
+
+      - key: DB_POOL_MIN
+        value: "1"
+
+      - key: DB_POOL_MAX
+        value: "5"   # Free tier has connection limits
+
+      # ── Redis (auto-linked from Render Redis) ──────────────
+      - key: REDIS_HOST
+        fromService:
+          name: medbook-redis
+          type: redis
+          property: host
+
+      - key: REDIS_PORT
+        fromService:
+          name: medbook-redis
+          type: redis
+          property: port
+
+      # ── JWT (generate strong secrets) ─────────────────────
+      # Set these in Render dashboard under Environment tab
+      - key: JWT_ACCESS_SECRET
+        generateValue: true   # Render auto-generates a secure value
+
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+
+      - key: JWT_ACCESS_EXPIRY
+        value: "1h"
+
+      - key: JWT_REFRESH_EXPIRY
+        value: "30d"
+
+      # ── OTP Settings ───────────────────────────────────────
+      - key: OTP_EXPIRY_MINUTES
+        value: "5"
+
+      - key: OTP_MAX_ATTEMPTS
+        value: "5"
+
+      - key: OTP_RATE_LIMIT_PER_HOUR
+        value: "5"
+
+      # ── Rate Limiting ──────────────────────────────────────
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "60000"
+
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: "100"
+
+      # ── Slot settings ──────────────────────────────────────
+      - key: SLOT_GENERATION_DAYS_AHEAD
+        value: "60"
+
+      - key: SLOT_LOCK_MINUTES
+        value: "5"
+
+      # ── Third-party (set manually in Render dashboard) ─────
+      # MSG91 SMS
+      - key: MSG91_API_KEY
+        sync: false   # Set manually in dashboard
+
+      - key: MSG91_SENDER_ID
+        value: MEDBK
+
+      - key: MSG91_TEMPLATE_ID
+        sync: false
+
+      # Gupshup WhatsApp
+      - key: GUPSHUP_API_KEY
+        sync: false
+
+      - key: GUPSHUP_SOURCE_NUMBER
+        sync: false
+
+      - key: GUPSHUP_APP_NAME
+        value: MedBook
+
+      # Firebase FCM
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+
+      # Razorpay
+      - key: RAZORPAY_KEY_ID
+        sync: false
+
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+
+      # AWS S3 (optional for testing — skip initially)
+      - key: AWS_REGION
+        value: ap-south-1
+
+      - key: AWS_S3_BUCKET
+        value: medbook-uploads
+
+      - key: AWS_CLOUDFRONT_URL
+        value: https://cdn.medbook.in
+
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+
+
+  # ── PostgreSQL Database ────────────────────────────────────
+  databases:
+
+    - name: medbook-postgres
+      databaseName: medbook_db
+      user: medbook_user
+      plan: free          # 256MB RAM, 1GB storage — good for testing
+      region: singapore
+
+
+  # ── Redis Cache ───────────────────────────────────────────
+  # Note: Render Redis is only on paid plans
+  # For free testing, the API gracefully handles Redis being unavailable
+  # (caching is disabled, rate limiting uses in-memory fallback)
