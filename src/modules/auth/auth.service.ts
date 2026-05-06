@@ -49,7 +49,7 @@ export async function sendOtp(phone: string): Promise<{
 
   // In development, log OTP to console instead of calling MSG91
   if (config.app.isDev) {
-    logger.info(`🔑 DEV OTP for ${phone}: ${otp}`);
+    logger.warn(`🔑 DEV OTP for ${phone}: ${otp}`)
     return { success: true, expiresInSeconds: config.otp.expiryMinutes * 60, providerMsgId: 'dev_mode' };
   }
 
